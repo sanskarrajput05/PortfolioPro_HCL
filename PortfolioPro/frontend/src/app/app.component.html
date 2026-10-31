@@ -1,0 +1,200 @@
+<main *ngIf="!authChecked()" class="boot-screen">
+  <div class="boot-mark">PP</div>
+  <span>Connecting to PortfolioPro</span>
+</main>
+
+<main *ngIf="authChecked() && !account()" class="auth-screen">
+  <section class="auth-visual">
+    <div class="auth-brand"><span class="brand-mark">P</span> PORTFOLIO<span>PRO</span></div>
+    <div class="auth-copy">
+      <p class="eyebrow">A CLEARER VIEW OF YOUR MARKET</p>
+      <h1>Build your position.<br />Know where you stand.</h1>
+      <p>Track demo-priced stocks, place buy and sell orders, and keep your transaction history in one place.</p>
+    </div>
+    <div class="auth-footnote">Quotes are simulated for demonstration.</div>
+  </section>
+
+  <section class="auth-panel">
+    <div class="auth-form-wrap">
+      <p class="eyebrow">PORTFOLIO ACCOUNT</p>
+      <h2>{{ signingUp ? 'Create your account' : 'Welcome back' }}</h2>
+      <p class="muted">{{ signingUp ? 'Your portfolio is saved to the connected database.' : 'Sign in to continue to your portfolio.' }}</p>
+      <form class="auth-form" (ngSubmit)="handleAuth()">
+        <label for="username">Username</label>
+        <input
+          id="username"
+          name="username"
+          autocomplete="username"
+          minlength="3"
+          maxlength="30"
+          [(ngModel)]="credentials.username"
+          required
+        />
+        <label for="password">Password</label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          [autocomplete]="signingUp ? 'new-password' : 'current-password'"
+          [minlength]="signingUp ? 8 : null"
+          maxlength="64"
+          [(ngModel)]="credentials.password"
+          required
+        />
+        <span *ngIf="signingUp" class="field-hint">Use at least 8 characters.</span>
+        <p *ngIf="authError()" class="inline-error" role="alert">{{ authError() }}</p>
+        <button class="button button-primary auth-submit" [disabled]="authBusy()">
+          {{ authBusy() ? 'Please wait...' : signingUp ? 'Create account' : 'Sign in' }}
+        </button>
+      </form>
+      <p class="auth-switch">
+        {{ signingUp ? 'Already have an account?' : 'New to PortfolioPro?' }}
+        <button type="button" (click)="switchAuthMode()">{{ signingUp ? 'Sign in' : 'Create account' }}</button>
+      </p>
+    </div>
+  </section>
+</main>
+
+<div *ngIf="authChecked() && account() as user" class="terminal-shell">
+  <header class="topbar">
+    <a class="wordmark" href="#market" (click)="selectTab('market')">
+      <span class="brand-mark">P</span><span>Portfolio<span class="wordmark-light">Pro</span></span>
+    </a>
+    <nav class="main-nav" aria-label="Portfolio sections">
+      <button
+        *ngFor="let tab of tabs"
+        class="nav-link"
+        [class.active]="activeTab() === tab.id"
+        (click)="selectTab(tab.id)"
+      >{{ tab.label }}</button>
+    </nav>
+    <div class="account-actions">
+      <span class="account-name"><span class="account-dot"></span>{{ user.username }}</span>
+      <button class="logout-button" (click)="handleLogout()">Sign out</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <section class="page-heading">
+      <div>
+        <p class="eyebrow">YOUR INVESTING WORKSPACE</p>
+        <h1>{{ activeTab() === 'market' ? 'Market overview' : activeTab() === 'holdings' ? 'Your holdings' : 'Order history' }}</h1>
+      </div>
+      <span class="quote-status"><span></span> Demo quotes</span>
+    </section>
+
+    <section class="indices-strip" aria-label="Indian market indices">
+      <div class="indices-label"><p class="eyebrow">INDIAN MARKET</p><span>Demo index levels</span></div>
+      <div *ngFor="let index of marketIndices" class="index-value">
+        <span>{{ index.name }}<small>{{ index.exchange }}</small></span>
+        <strong>{{ formatIndex(index.value) }}</strong>
+      </div>
+    </section>
+
+    <div *ngIf="dashboardError()" class="notice notice-error" role="alert">{{ dashboardError() }}</div>
+    <div *ngIf="notice()" class="notice notice-success" role="status">{{ notice() }}</div>
+
+    <section class="summary-strip" aria-label="Portfolio summary">
+      <div class="summary-item"><span>Portfolio value</span><strong>{{ formatMoney(portfolioValue()) }}</strong><small>Based on available demo quotes</small></div>
+      <div class="summary-item"><span>Open positions</span><strong>{{ heldPositions().length }}</strong><small>Stocks with shares owned</small></div>
+      <div class="summary-item"><span>Transactions</span><strong>{{ transactions().length }}</strong><small>Saved to your account</small></div>
+    </section>
+
+    <section *ngIf="activeTab() === 'market'" class="market-layout">
+      <div class="data-section">
+        <div class="section-heading">
+          <div><p class="eyebrow">AVAILABLE INSTRUMENTS</p><h2>Market watch</h2></div>
+          <span class="row-count">{{ stocks().length }} stocks</span>
+        </div>
+        <div class="table-wrap">
+          <table class="market-table">
+            <thead><tr><th>Instrument</th><th>Symbol</th><th>Demo price</th><th aria-label="Trade action"></th></tr></thead>
+            <tbody>
+              <tr *ngFor="let stock of stocks()">
+                <td><strong>{{ stock.name }}</strong><small>Equity</small></td>
+                <td><span class="symbol-tag">{{ stock.symbol }}</span></td>
+                <td class="price-cell">{{ formatMoney(stock.currentPrice) }}</td>
+                <td><button class="text-action" (click)="selectStock(stock)">Trade <span aria-hidden="true">-&gt;</span></button></td>
+              </tr>
+              <tr *ngIf="!stocks().length"><td colspan="4" class="empty-state">{{ dashboardBusy() ? 'Loading instruments...' : 'No stocks are available.' }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="data-note">Prices are seeded demo values and are not live market data.</p>
+      </div>
+
+      <aside class="order-panel">
+        <div class="section-heading order-heading"><div><p class="eyebrow">PLACE A TRADE</p><h2>New order</h2></div></div>
+        <div class="trade-toggle" role="group" aria-label="Order type">
+          <button
+            *ngFor="let type of tradeTypes"
+            class="trade-option"
+            [class.buy]="type === 'BUY'"
+            [class.sell]="type === 'SELL'"
+            [class.selected]="trade.type === type"
+            (click)="selectTradeType(type)"
+          >{{ type }}</button>
+        </div>
+        <form class="trade-form" (ngSubmit)="handleTrade()">
+          <label for="stock-symbol">Stock</label>
+          <select id="stock-symbol" name="symbol" [(ngModel)]="trade.symbol" required>
+            <option *ngIf="!stocks().length" value="">No stocks available</option>
+            <option *ngFor="let stock of stocks()" [value]="stock.symbol">{{ stock.symbol }} - {{ stock.name }}</option>
+          </select>
+          <label for="quantity">Quantity</label>
+          <input id="quantity" name="quantity" type="number" min="1" step="1" [(ngModel)]="trade.quantity" required />
+          <div *ngIf="selectedStock()" class="order-estimate">
+            <span>Estimated order value</span>
+            <strong>{{ formatMoney(selectedStock()!.currentPrice * quantityValue()) }}</strong>
+          </div>
+          <p *ngIf="tradeError()" class="inline-error" role="alert">{{ tradeError() }}</p>
+          <button class="button" [class.button-primary]="trade.type === 'BUY'" [class.button-sell]="trade.type === 'SELL'" [disabled]="!stocks().length || !trade.quantity">
+            Submit {{ trade.type.toLowerCase() }} order
+          </button>
+        </form>
+        <p class="order-caption">Orders use the displayed demo price and are saved in your transaction history.</p>
+      </aside>
+    </section>
+
+    <section *ngIf="activeTab() === 'holdings'" class="data-section full-section">
+      <div class="section-heading"><div><p class="eyebrow">POSITIONS FROM YOUR TRADE HISTORY</p><h2>Holdings</h2></div></div>
+      <div class="table-wrap">
+        <table class="market-table">
+          <thead><tr><th>Instrument</th><th>Shares</th><th>Average cost</th><th>Last demo price</th><th>Market value</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let position of heldPositions()">
+              <td><strong>{{ position.stock?.name || position.symbol }}</strong><small>{{ position.symbol }}</small></td>
+              <td>{{ position.quantity }}</td>
+              <td>{{ formatMoney(position.averageCost) }}</td>
+              <td>{{ position.stock ? formatMoney(position.stock.currentPrice) : 'N/A' }}</td>
+              <td class="price-cell">{{ formatMoney(position.quantity * (position.stock?.currentPrice ?? 0)) }}</td>
+            </tr>
+            <tr *ngIf="!heldPositions().length"><td colspan="5" class="empty-state">{{ dashboardBusy() ? 'Loading holdings...' : 'No open positions yet. Buy a stock from Market to get started.' }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section *ngIf="activeTab() === 'orders'" class="data-section full-section">
+      <div class="section-heading"><div><p class="eyebrow">ACCOUNT ACTIVITY</p><h2>Transactions</h2></div><span class="row-count">{{ transactions().length }} records</span></div>
+      <div class="table-wrap">
+        <table class="market-table">
+          <thead><tr><th>Side</th><th>Instrument</th><th>Quantity</th><th>Execution price</th><th>Total</th><th>Time</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let transaction of transactions()">
+              <td><span class="side-tag" [class.buy]="transaction.type === 'BUY'" [class.sell]="transaction.type === 'SELL'">{{ transaction.type }}</span></td>
+              <td><strong>{{ transaction.symbol }}</strong></td>
+              <td>{{ transaction.quantity }}</td>
+              <td>{{ formatMoney(transaction.executionPrice) }}</td>
+              <td>{{ formatMoney(transaction.quantity * (transaction.executionPrice ?? 0)) }}</td>
+              <td class="time-cell">{{ transaction.timestamp | date:'short' }}</td>
+            </tr>
+            <tr *ngIf="!transactions().length"><td colspan="6" class="empty-state">{{ dashboardBusy() ? 'Loading transactions...' : 'Your completed orders will appear here.' }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="workspace-footer"><span>PortfolioPro</span><span>Demo trading workspace · Quotes are not real-time</span></footer>
+  </main>
+</div>
